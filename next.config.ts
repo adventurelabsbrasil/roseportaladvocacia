@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    // Raiz do projeto: evita aviso de múltiplos lockfiles (ex.: um na pasta do projeto e outro em pasta pai)
-    root: ".",
-  },
+  // turbopack.root removido aqui: na Vercel não há múltiplos lockfiles e pode atrapalhar o build
 };
 
 export default nextConfig;
