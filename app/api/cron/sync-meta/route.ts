@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const date = getYesterday();
     const supabase = createServerSupabase();
     const result = await syncMetaForDay(supabase, date);
-    return NextResponse.json({ ok: true, date, ...result });
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Sync failed";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
