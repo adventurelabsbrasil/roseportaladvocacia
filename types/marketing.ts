@@ -34,6 +34,7 @@ export type ChartPoint = {
   campaign_id: string;
   leads: number;
   results: number;
+  conversations_started: number;
 };
 
 export type DashboardData = {

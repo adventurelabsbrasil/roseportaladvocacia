@@ -13,9 +13,13 @@ import {
 } from "recharts";
 import type { ChartPoint } from "@/types/marketing";
 
-type LeadsChartProps = { data: ChartPoint[]; useResults?: boolean };
+type LeadsChartProps = {
+  data: ChartPoint[];
+  /** "conversations" = conversas iniciadas (padrão), "leads" = leads (parser Meta) */
+  metric?: "conversations" | "leads";
+};
 
-export function LeadsChart({ data, useResults = false }: LeadsChartProps) {
+export function LeadsChart({ data, metric = "conversations" }: LeadsChartProps) {
   const [hiddenDataKeys, setHiddenDataKeys] = useState<Set<string>>(new Set());
 
   const toggleLegend = useCallback((dataKey: string) => {
@@ -39,11 +43,19 @@ export function LeadsChart({ data, useResults = false }: LeadsChartProps) {
     for (const [campaignId, name] of campaigns) {
       const total = data
         .filter((d) => d.date === date && d.campaign_id === campaignId)
-        .reduce((sum, d) => sum + (useResults ? d.results : d.leads), 0);
+        .reduce(
+          (sum, d) =>
+            sum +
+            (metric === "conversations" ? d.conversations_started : d.leads),
+          0
+        );
       point[name || campaignId] = total;
     }
     return point;
   });
+
+  const metricLabel =
+    metric === "conversations" ? "Conversas iniciadas" : "Leads";
 
   const colors = [
     "#10b981",
@@ -81,7 +93,7 @@ export function LeadsChart({ data, useResults = false }: LeadsChartProps) {
             borderRadius: "8px",
           }}
           labelStyle={{ color: "#e5e7eb" }}
-          formatter={(value: number) => [value, useResults ? "Resultados" : "Leads"]}
+          formatter={(value: number) => [value, metricLabel]}
           labelFormatter={(label) => `Data: ${label}`}
         />
         <Legend

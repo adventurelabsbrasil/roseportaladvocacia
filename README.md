@@ -70,6 +70,14 @@ O relatório usa dados do **dia anterior** (“ontem”, timezone America/Sao_Pa
 
 Depois de sincronizar, altere a data no filtro da página e/ou recarregue para ver os dados.
 
+### Gatilho diário (cron)
+
+O projeto está configurado para rodar um **sync automático** todo dia via **Vercel Cron** (horário: **06:00 BRT**, 09:00 UTC).
+
+- **O que está ativo:** em `vercel.json` há um cron que chama `GET /api/cron/sync-meta` diariamente.
+- **Para ativar na Vercel:** no dashboard do projeto → **Settings** → **Environment Variables**, adicione `CRON_SECRET` (um valor secreto qualquer, ex.: `openssl rand -hex 32`). A Vercel envia esse valor no header ao chamar o cron; sem ele, a rota retorna 401.
+- **Testar:** após o deploy, você pode disparar o cron manualmente em **Settings** → **Cron Jobs** (ou esperar o horário). O endpoint sincroniza os dados de **ontem** no Supabase.
+
 ## Deploy (Vercel)
 
 - Configure as mesmas variáveis de ambiente no projeto Vercel.

@@ -6,11 +6,13 @@ import type { RowByCampaignAd } from "@/types/marketing";
 type SortKey = keyof RowByCampaignAd;
 type GroupBy = "none" | "campaign" | "date" | "month";
 
+const PAGE_SIZES = [10, 25, 50, 100];
+
 type MetricsTableProps = {
   rows: RowByCampaignAd[];
   formatBRL: (n: number) => string;
   formatNum: (n: number) => string;
-  };
+};
 
 const SORT_KEYS: { key: SortKey; label: string; align: "left" | "right" }[] = [
   { key: "campaign_name", label: "Campanha", align: "left" },
@@ -18,7 +20,6 @@ const SORT_KEYS: { key: SortKey; label: string; align: "left" | "right" }[] = [
   { key: "impressions", label: "Impressões", align: "right" },
   { key: "link_clicks", label: "Cliques", align: "right" },
   { key: "spend_brl", label: "Investido (BRL)", align: "right" },
-  { key: "results", label: "Resultados", align: "right" },
   { key: "conversations_started", label: "Conversas", align: "right" },
   { key: "leads", label: "Leads", align: "right" },
 ];
@@ -31,6 +32,9 @@ export function MetricsTable({
   const [sortBy, setSortBy] = useState<SortKey>("campaign_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(1);
+  const [tableFilter, setTableFilter] = useState("");
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
     new Set()
   );
@@ -49,16 +53,38 @@ export function MetricsTable({
     arr.sort((a, b) => {
       const va = a[sortBy];
       const vb = b[sortBy];
+      if (va == null && vb == null) return 0;
+      if (va == null) return sortOrder === "asc" ? 1 : -1;
+      if (vb == null) return sortOrder === "asc" ? -1 : 1;
       if (typeof va === "string" && typeof vb === "string") {
-        const c = va.localeCompare(vb);
+        const c = va.localeCompare(vb, "pt-BR");
         return sortOrder === "asc" ? c : -c;
       }
-      const na = Number(va) || 0;
-      const nb = Number(vb) || 0;
-      return sortOrder === "asc" ? na - nb : nb - na;
+      const na = Number(va);
+      const nb = Number(vb);
+      const nA = Number.isFinite(na) ? na : 0;
+      const nB = Number.isFinite(nb) ? nb : 0;
+      return sortOrder === "asc" ? nA - nB : nB - nA;
     });
     return arr;
   }, [rows, sortBy, sortOrder]);
+
+  const filteredRows = useMemo(() => {
+    const q = tableFilter.trim().toLowerCase();
+    if (!q) return sortedRows;
+    return sortedRows.filter(
+      (r) =>
+        (r.campaign_name ?? "").toLowerCase().includes(q) ||
+        (r.ad_name ?? "").toLowerCase().includes(q)
+    );
+  }, [sortedRows, tableFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
 
   const handleSort = (key: SortKey) => {
     if (sortBy === key) setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
@@ -135,7 +161,7 @@ export function MetricsTable({
 
   if (groupBy === "campaign") {
     const byCampaign = new Map<string, RowByCampaignAd[]>();
-    for (const r of sortedRows) {
+    for (const r of filteredRows) {
       const id = r.campaign_id;
       if (!byCampaign.has(id)) byCampaign.set(id, []);
       byCampaign.get(id)!.push(r);
@@ -158,6 +184,16 @@ export function MetricsTable({
               Mês {!hasDate && "(período necessário)"}
             </option>
           </select>
+          <input
+            type="text"
+            placeholder="Filtrar tabela (campanha ou anúncio)"
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="flex-1 min-w-[200px] bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500 text-sm"
+          />
+          <span className="text-gray-500 text-xs">
+            {filteredRows.length} linha(s)
+          </span>
         </div>
         <div className="overflow-x-auto rounded-lg border border-gray-800">
           <table className="w-full text-sm">
@@ -166,7 +202,8 @@ export function MetricsTable({
                 {SORT_KEYS.map(({ key, label, align }) => (
                   <th
                     key={key}
-                    className={`px-4 py-3 font-medium cursor-pointer select-none ${
+                    role="columnheader"
+                    className={`px-4 py-3 font-medium cursor-pointer select-none hover:text-gray-300 ${
                       align === "right" ? "text-right" : ""
                     } ${sortBy === key ? "text-white" : ""}`}
                     onClick={() => handleSort(key)}
@@ -185,8 +222,8 @@ export function MetricsTable({
               {Array.from(byCampaign.entries()).map(([campaignId, groupRows]) => {
                 const name = groupRows[0]?.campaign_name ?? campaignId;
                 const expanded = expandedCampaigns.has(campaignId);
-                const totalResults = groupRows.reduce(
-                  (s, r) => s + (r.results || 0),
+                const totalLeads = groupRows.reduce(
+                  (s, r) => s + (r.leads || 0),
                   0
                 );
                 return (
@@ -204,9 +241,9 @@ export function MetricsTable({
                       </td>
                       <td colSpan={2} className="px-4 py-2 text-right text-gray-400" />
                       <td className="px-4 py-2 text-right text-white">
-                        {formatNum(totalResults)}
+                        {formatNum(totalLeads)}
                       </td>
-                      <td colSpan={3} className="px-4 py-2 text-right text-gray-400" />
+                      <td colSpan={2} className="px-4 py-2 text-right text-gray-400" />
                     </tr>
                     {expanded && groupRows.map((r) => renderRow(r, true))}
                   </Fragment>
@@ -221,7 +258,7 @@ export function MetricsTable({
 
   if (groupBy === "date" && hasDate) {
     const byDate = new Map<string, RowByCampaignAd[]>();
-    for (const r of sortedRows) {
+    for (const r of filteredRows) {
       const d = (r as RowByCampaignAd & { date?: string }).date ?? "";
       if (!d) continue;
       if (!byDate.has(d)) byDate.set(d, []);
@@ -242,6 +279,16 @@ export function MetricsTable({
             <option value="date">Data</option>
             <option value="month">Mês</option>
           </select>
+          <input
+            type="text"
+            placeholder="Filtrar tabela (campanha ou anúncio)"
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="flex-1 min-w-[200px] bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500 text-sm"
+          />
+          <span className="text-gray-500 text-xs">
+            {filteredRows.length} linha(s)
+          </span>
         </div>
         <div className="overflow-x-auto rounded-lg border border-gray-800">
           <table className="w-full text-sm">
@@ -292,7 +339,7 @@ export function MetricsTable({
 
   if (groupBy === "month" && hasDate) {
     const byMonth = new Map<string, RowByCampaignAd[]>();
-    for (const r of sortedRows) {
+    for (const r of filteredRows) {
       const d = (r as RowByCampaignAd & { date?: string }).date ?? "";
       if (!d) continue;
       const m = d.slice(0, 7);
@@ -314,6 +361,16 @@ export function MetricsTable({
             <option value="date">Data</option>
             <option value="month">Mês</option>
           </select>
+          <input
+            type="text"
+            placeholder="Filtrar tabela (campanha ou anúncio)"
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="flex-1 min-w-[200px] bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500 text-sm"
+          />
+          <span className="text-gray-500 text-xs">
+            {filteredRows.length} linha(s)
+          </span>
         </div>
         <div className="overflow-x-auto rounded-lg border border-gray-800">
           <table className="w-full text-sm">
@@ -368,7 +425,10 @@ export function MetricsTable({
         <span className="text-gray-400">Agrupar por:</span>
         <select
           value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+          onChange={(e) => {
+            setGroupBy(e.target.value as GroupBy);
+            setPage(1);
+          }}
           className="bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white"
         >
           <option value="none">Nenhum</option>
@@ -380,6 +440,19 @@ export function MetricsTable({
             Mês {!hasDate && "(período necessário)"}
           </option>
         </select>
+        <input
+          type="text"
+          placeholder="Filtrar tabela (campanha ou anúncio)"
+          value={tableFilter}
+          onChange={(e) => {
+            setTableFilter(e.target.value);
+            setPage(1);
+          }}
+          className="flex-1 min-w-[200px] bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white placeholder-gray-500 text-sm"
+        />
+        <span className="text-gray-500 text-xs">
+          {filteredRows.length} linha(s)
+        </span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-gray-800">
         <table className="w-full text-sm">
@@ -388,7 +461,8 @@ export function MetricsTable({
               {SORT_KEYS.map(({ key, label, align }) => (
                 <th
                   key={key}
-                  className={`px-4 py-3 font-medium cursor-pointer select-none ${
+                  role="columnheader"
+                  className={`px-4 py-3 font-medium cursor-pointer select-none hover:text-gray-300 ${
                     align === "right" ? "text-right" : ""
                   } ${sortBy === key ? "text-white" : ""}`}
                   onClick={() => handleSort(key)}
@@ -404,9 +478,49 @@ export function MetricsTable({
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((r) => renderRow(r))}
+            {paginatedRows.map((r) => renderRow(r))}
           </tbody>
         </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">Linhas por página:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="bg-[#1a1a1a] border border-gray-700 rounded px-2 py-1.5 text-white"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="px-2 py-1 rounded bg-[#1a1a1a] border border-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800"
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className="px-2 py-1 rounded bg-[#1a1a1a] border border-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800"
+          >
+            Próxima
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ function FilterDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full text-left bg-[#0f0f0f] border border-gray-700 rounded px-3 py-2 text-white text-sm flex items-center justify-between"
+        className="w-full text-left bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm flex items-center justify-between"
       >
         <span className="truncate">
           {label}
@@ -54,7 +54,7 @@ function FilterDropdown({
             placeholder="Buscar…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="m-2 py-1.5 px-2 rounded bg-[#0f0f0f] border border-gray-700 text-white text-sm placeholder-gray-500"
+            className="m-2 py-1.5 px-2 rounded bg-[#0a1628] border border-gray-700 text-white text-sm placeholder-gray-500"
           />
           <div className="overflow-y-auto flex-1 min-h-0 p-2 space-y-1">
             {loading ? (
@@ -65,7 +65,7 @@ function FilterDropdown({
               filtered.map((o) => (
                 <label
                   key={o.id}
-                  className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer hover:bg-[#0f0f0f] rounded px-2 py-1"
+                  className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer hover:bg-[#0a1628] rounded px-2 py-1"
                 >
                   <input
                     type="checkbox"
@@ -173,11 +173,11 @@ export function MarketingSidebar({
 
       <aside
         className={`
-          fixed top-0 left-0 z-10 h-full overflow-y-auto bg-[#1a1a1a] border-r border-gray-800 p-4
-          transition-all duration-200 ease-out
-          lg:relative lg:flex-shrink-0 lg:z-0
-          ${open ? "translate-x-0 w-72" : "-translate-x-full w-0 lg:translate-x-0 lg:w-0 lg:overflow-hidden"}
+          fixed top-0 left-0 z-10 h-full w-72 max-w-[85vw] overflow-y-auto bg-[#1a1a1a] border-r border-gray-800 p-4
+          transition-transform duration-200 ease-out
+          ${open ? "translate-x-0" : "-translate-x-full"}
         `}
+        aria-hidden={!open}
       >
         <div className="pt-12 lg:pt-4 space-y-6">
           <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
@@ -186,7 +186,7 @@ export function MarketingSidebar({
           <select
             value={channelId}
             onChange={(e) => onChannelChange(e.target.value)}
-            className="w-full bg-[#0f0f0f] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+            className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
           >
             {channels.length
               ? channels.map((c) => (
@@ -211,7 +211,7 @@ export function MarketingSidebar({
                 setFilterState((s) => ({ ...s, since: e.target.value }))
               }
               onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-              className="w-full bg-[#0f0f0f] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
             />
             <label className="block text-xs text-gray-400">Até</label>
             <input
@@ -221,42 +221,42 @@ export function MarketingSidebar({
                 setFilterState((s) => ({ ...s, until: e.target.value }))
               }
               onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-              className="w-full bg-[#0f0f0f] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setPreset("yesterday")}
-              className="px-2 py-1.5 rounded bg-[#0f0f0f] text-gray-300 text-xs hover:bg-gray-800"
+              className="px-2 py-1.5 rounded bg-[#0a1628] text-gray-300 text-xs hover:bg-gray-800"
             >
               Ontem
             </button>
             <button
               type="button"
               onClick={() => setPreset("last7")}
-              className="px-2 py-1.5 rounded bg-[#0f0f0f] text-gray-300 text-xs hover:bg-gray-800"
+              className="px-2 py-1.5 rounded bg-[#0a1628] text-gray-300 text-xs hover:bg-gray-800"
             >
               7 dias
             </button>
             <button
               type="button"
               onClick={() => setPreset("last30")}
-              className="px-2 py-1.5 rounded bg-[#0f0f0f] text-gray-300 text-xs hover:bg-gray-800"
+              className="px-2 py-1.5 rounded bg-[#0a1628] text-gray-300 text-xs hover:bg-gray-800"
             >
               30 dias
             </button>
             <button
               type="button"
               onClick={() => setPreset("thisMonth")}
-              className="px-2 py-1.5 rounded bg-[#0f0f0f] text-gray-300 text-xs hover:bg-gray-800"
+              className="px-2 py-1.5 rounded bg-[#0a1628] text-gray-300 text-xs hover:bg-gray-800"
             >
               Este mês
             </button>
             <button
               type="button"
               onClick={() => setPreset("lastMonth")}
-              className="px-2 py-1.5 rounded bg-[#0f0f0f] text-gray-300 text-xs hover:bg-gray-800"
+              className="px-2 py-1.5 rounded bg-[#0a1628] text-gray-300 text-xs hover:bg-gray-800"
             >
               Mês passado
             </button>
@@ -303,7 +303,7 @@ export function MarketingSidebar({
             onChange={(e) =>
               setFilterState((s) => ({ ...s, objective: e.target.value }))
             }
-            className="w-full bg-[#0f0f0f] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+            className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
           >
             <option value="">Todos</option>
             {(options?.objectives ?? []).map((o) => (

@@ -143,7 +143,7 @@ export async function loadDashboardData(
 
   let chartQuery = supabase
     .from("daily_metrics")
-    .select(hasResultsColumn ? "date, campaign_id, leads, results" : "date, campaign_id, leads")
+    .select("date, campaign_id, leads, conversations_started")
     .eq("channel_id", channelId)
     .order("date", { ascending: true });
 
@@ -158,7 +158,7 @@ export async function loadDashboardData(
     date: string;
     campaign_id: string;
     leads: number;
-    results?: number;
+    conversations_started: number;
   }>;
 
   const campaignIdsInChart = [
@@ -183,7 +183,8 @@ export async function loadDashboardData(
     campaign_id: r.campaign_id,
     campaign_name: chartCampaignNames.get(r.campaign_id) ?? "",
     leads: Number(r.leads) || 0,
-    results: hasResultsColumn ? Number((r as { results?: number }).results) || 0 : 0,
+    results: 0,
+    conversations_started: Number(r.conversations_started) || 0,
   }));
 
   return {

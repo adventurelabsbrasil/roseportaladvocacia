@@ -187,7 +187,11 @@ export default function MarketingPage() {
         channelId={channelId}
         onChannelChange={setChannelId}
       />
-      <div className="flex-1 min-w-0 p-6">
+      <div
+        className={`flex-1 min-w-0 p-6 transition-[padding] duration-200 ${
+          sidebarOpen ? "lg:pl-72" : ""
+        }`}
+      >
         <div className="max-w-6xl mx-auto">
           <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
             <h1 className="text-2xl font-semibold text-white">
@@ -241,10 +245,10 @@ export default function MarketingPage() {
             {data.chartData.length > 0 && (
               <section className="mb-8">
                 <h2 className="text-lg font-medium text-white mb-4">
-                  Leads por dia por campanha
+                  Conversas iniciadas por dia por campanha
                 </h2>
                 <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-4">
-                  <LeadsChart data={data.chartData} />
+                  <LeadsChart data={data.chartData} metric="conversations" />
                 </div>
               </section>
             )}
