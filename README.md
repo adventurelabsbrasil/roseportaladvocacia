@@ -73,9 +73,19 @@ Depois de sincronizar, altere a data no filtro da página e/ou recarregue para v
 
 ## Deploy (Vercel)
 
-- **Project ID:** `prj_nM9PTuVPgvk4EdYEcaqCQqzSUfBt` (já em `vercel.json`).
 - Configure as mesmas variáveis de ambiente no projeto Vercel.
 - Domínio: `roseportaladvocacia.adventurelabs.com.br` (configurar no dashboard da Vercel).
+
+### Se der 404 após o build
+
+No dashboard do projeto Vercel → **Settings** → **General**:
+
+1. **Framework Preset:** deve ser **Next.js** (não "Other" nem outro).
+2. **Root Directory:** deixe **vazio** (ou `.`). Se estiver preenchido com outra pasta, o deploy não acha o app.
+3. **Build Command:** deixe o padrão (`npm run build` ou em branco).
+4. **Output Directory:** deixe **vazio** (Next.js usa `.next`; a Vercel cuida disso).
+
+Salve e faça um novo deploy (Deployments → ⋮ no último → Redeploy).
 
 ## Fase 2 — Histórico
 
