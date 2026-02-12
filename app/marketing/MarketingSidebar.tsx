@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { getPresetRange } from "@/lib/date";
+import { getPresetRange, getYesterday } from "@/lib/date";
 
 function FilterDropdown({
   label,
@@ -313,13 +313,35 @@ export function MarketingSidebar({
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={() => onApply()}
-            className="w-full py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium"
-          >
-            Aplicar filtros
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const d = getYesterday();
+                const cleared: FilterState = {
+                  since: d,
+                  until: d,
+                  useRange: false,
+                  campaignIds: [],
+                  adSetIds: [],
+                  adIds: [],
+                  objective: "",
+                };
+                setFilterState(cleared);
+                onApply(cleared);
+              }}
+              className="flex-1 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium"
+            >
+              Limpar filtros
+            </button>
+            <button
+              type="button"
+              onClick={() => onApply()}
+              className="flex-1 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium"
+            >
+              Aplicar filtros
+            </button>
+          </div>
         </div>
       </aside>
 
