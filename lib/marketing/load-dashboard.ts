@@ -18,11 +18,11 @@ export async function loadDashboardData(
   const since = dateOrSince;
   const date = isRange ? since : dateOrSince;
 
+  const metricsColumns =
+    "date, campaign_id, ad_id, impressions, link_clicks, spend_brl, leads, conversations_started";
   let query = supabase
     .from("daily_metrics")
-    .select(
-      "date, campaign_id, ad_id, impressions, link_clicks, spend_brl, leads, results, conversations_started"
-    )
+    .select(`${metricsColumns}, results`)
     .eq("channel_id", channelId);
 
   if (isRange) {
@@ -31,34 +31,59 @@ export async function loadDashboardData(
     query = query.eq("date", date);
   }
 
-  const { data: metricsRows, error: metricsError } = await query;
+  type MetricsRow = Record<string, unknown> & {
+  date: string;
+  campaign_id: string;
+  ad_id: string;
+  impressions: number;
+  link_clicks: number;
+  spend_brl: number;
+  leads: number;
+  conversations_started: number;
+};
+  let res = await query;
+  let metricsRows: MetricsRow[] | null = res.data as MetricsRow[] | null;
+  let metricsError = res.error;
+  let hasResultsColumn = true;
+
+  if (metricsError && /results|column/.test(metricsError.message)) {
+    const q2 = isRange
+      ? supabase.from("daily_metrics").select(metricsColumns).eq("channel_id", channelId).gte("date", since).lte("date", until)
+      : supabase.from("daily_metrics").select(metricsColumns).eq("channel_id", channelId).eq("date", date);
+    const res2 = await q2;
+    metricsRows = res2.data as MetricsRow[] | null;
+    metricsError = res2.error;
+    hasResultsColumn = false;
+  }
 
   if (metricsError) throw new Error(metricsError.message);
 
   const campaignIds = [...new Set((metricsRows ?? []).map((r) => r.campaign_id))];
   const adIds = [...new Set((metricsRows ?? []).map((r) => r.ad_id))];
 
-  let campaignsQuery = supabase
+  let campaignsData: { id: string; name: string; objective?: string }[] = [];
+  const campaignsRes = await supabase
     .from("campaigns")
     .select("id, name, objective")
     .in("id", campaignIds.length ? campaignIds : ["00000000-0000-0000-0000-000000000000"]);
-  const campaignsRes = await campaignsQuery;
-  const campaignsData = (campaignsRes.data ?? []) as {
-    id: string;
-    name: string;
-    objective?: string;
-  }[];
+  if (campaignsRes.error && /objective|column/.test(campaignsRes.error.message)) {
+    const fallback = await supabase.from("campaigns").select("id, name").in("id", campaignIds.length ? campaignIds : ["00000000-0000-0000-0000-000000000000"]);
+    campaignsData = (fallback.data ?? []) as { id: string; name: string }[];
+  } else {
+    campaignsData = (campaignsRes.data ?? []) as { id: string; name: string; objective?: string }[];
+  }
 
-  let adsQuery = supabase
+  let adsData: { id: string; name: string; ad_set_id?: string }[] = [];
+  const adsRes = await supabase
     .from("ads")
     .select("id, name, ad_set_id")
     .in("id", adIds.length ? adIds : ["00000000-0000-0000-0000-000000000000"]);
-  const adsRes = await adsQuery;
-  const adsData = (adsRes.data ?? []) as {
-    id: string;
-    name: string;
-    ad_set_id?: string;
-  }[];
+  if (adsRes.error && /ad_set_id|column/.test(adsRes.error.message)) {
+    const fallback = await supabase.from("ads").select("id, name").in("id", adIds.length ? adIds : ["00000000-0000-0000-0000-000000000000"]);
+    adsData = (fallback.data ?? []) as { id: string; name: string }[];
+  } else {
+    adsData = (adsRes.data ?? []) as { id: string; name: string; ad_set_id?: string }[];
+  }
 
   const campaignNames = new Map(campaignsData.map((c) => [c.id, c.name]));
   const campaignObjectives = new Map(
@@ -77,7 +102,7 @@ export async function loadDashboardData(
     link_clicks: Number(r.link_clicks) || 0,
     spend_brl: Number(r.spend_brl) || 0,
     leads: Number(r.leads) || 0,
-    results: Number((r as { results?: number }).results) || 0,
+    results: hasResultsColumn ? Number((r as { results?: number }).results) || 0 : 0,
     conversations_started: Number(r.conversations_started) || 0,
   }));
 
@@ -118,7 +143,7 @@ export async function loadDashboardData(
 
   let chartQuery = supabase
     .from("daily_metrics")
-    .select("date, campaign_id, leads, results")
+    .select(hasResultsColumn ? "date, campaign_id, leads, results" : "date, campaign_id, leads")
     .eq("channel_id", channelId)
     .order("date", { ascending: true });
 
@@ -128,10 +153,16 @@ export async function loadDashboardData(
     chartQuery = chartQuery.eq("date", date);
   }
 
-  const { data: allMetricsForChart } = await chartQuery;
+  const chartRes = await chartQuery;
+  const allMetricsForChart = ((chartRes.data ?? []) as unknown) as Array<{
+    date: string;
+    campaign_id: string;
+    leads: number;
+    results?: number;
+  }>;
 
   const campaignIdsInChart = [
-    ...new Set((allMetricsForChart ?? []).map((r) => r.campaign_id)),
+    ...new Set(allMetricsForChart.map((r) => r.campaign_id)),
   ];
   const { data: campaignsForChart } =
     campaignIdsInChart.length > 0
@@ -141,7 +172,7 @@ export async function loadDashboardData(
     (campaignsForChart ?? []).map((c) => [c.id, c.name])
   );
 
-  let chartRows = allMetricsForChart ?? [];
+  let chartRows = allMetricsForChart;
   if (filters?.campaign_ids?.length) {
     const set = new Set(filters.campaign_ids);
     chartRows = chartRows.filter((r) => set.has(r.campaign_id));
@@ -152,7 +183,7 @@ export async function loadDashboardData(
     campaign_id: r.campaign_id,
     campaign_name: chartCampaignNames.get(r.campaign_id) ?? "",
     leads: Number(r.leads) || 0,
-    results: Number((r as { results?: number }).results) || 0,
+    results: hasResultsColumn ? Number((r as { results?: number }).results) || 0 : 0,
   }));
 
   return {

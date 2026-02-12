@@ -8,13 +8,24 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerSupabase();
 
-    const { data: campaigns } = await supabase
+    let campaigns: { id: string; name: string; objective?: string }[] = [];
+    const campaignsRes = await supabase
       .from("campaigns")
       .select("id, name, objective")
       .eq("channel_id", channelId)
       .order("name");
+    if (campaignsRes.error && /objective|column/.test(campaignsRes.error.message)) {
+      const fallback = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .eq("channel_id", channelId)
+        .order("name");
+      campaigns = (fallback.data ?? []) as { id: string; name: string }[];
+    } else {
+      campaigns = (campaignsRes.data ?? []) as { id: string; name: string; objective?: string }[];
+    }
 
-    const campaignIds = (campaigns ?? []).map((c) => c.id);
+    const campaignIds = campaigns.map((c) => c.id);
 
     let adSets: { id: string; name: string; campaign_id: string }[] = [];
     try {
@@ -28,28 +39,40 @@ export async function GET(request: NextRequest) {
       // ad_sets table may not exist yet
     }
 
-    const { data: ads } = await supabase
+    let ads: { id: string; name: string; campaign_id: string; ad_set_id?: string }[] = [];
+    const adsRes = await supabase
       .from("ads")
       .select("id, name, campaign_id, ad_set_id")
       .in("campaign_id", campaignIds.length ? campaignIds : ["00000000-0000-0000-0000-000000000000"])
       .order("name");
+    if (adsRes.error && /ad_set_id|column/.test(adsRes.error.message)) {
+      const fallback = await supabase
+        .from("ads")
+        .select("id, name, campaign_id")
+        .in("campaign_id", campaignIds.length ? campaignIds : ["00000000-0000-0000-0000-000000000000"])
+        .order("name");
+      ads = (fallback.data ?? []) as { id: string; name: string; campaign_id: string }[];
+    } else {
+      ads = (adsRes.data ?? []) as { id: string; name: string; campaign_id: string; ad_set_id?: string }[];
+    }
 
     const objectives = [
       ...new Set(
-        (campaigns ?? [])
-          .map((c) => (c as { objective?: string }).objective)
+        campaigns
+          .map((c) => c.objective)
           .filter((o): o is string => o != null && o !== "")
       ),
     ].sort();
 
     return NextResponse.json({
-      campaigns: campaigns ?? [],
+      campaigns,
       ad_sets: adSets,
-      ads: ads ?? [],
+      ads,
       objectives,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load filters";
+    console.error("[GET /api/marketing/filters]", e);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

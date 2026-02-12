@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load dashboard";
+    console.error("[GET /api/marketing]", e);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
