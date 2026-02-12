@@ -20,6 +20,28 @@ export function formatDateForDisplay(dateStr: string): string {
   });
 }
 
+/**
+ * Split a date range into monthly chunks. Each chunk is { since, until } (inclusive).
+ * Useful for batching API calls (e.g. Meta Insights per month).
+ */
+export function monthlyChunks(since: string, until: string): { since: string; until: string }[] {
+  const chunks: { since: string; until: string }[] = [];
+  const start = new Date(since + "T12:00:00");
+  const end = new Date(until + "T12:00:00");
+  let cur = new Date(start);
+  while (cur <= end) {
+    const y = cur.getFullYear();
+    const m = cur.getMonth();
+    const chunkStart = `${y}-${String(m + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    const lastDay = new Date(y, m + 1, 0);
+    const chunkEndDate = lastDay > end ? end : lastDay;
+    const chunkEnd = `${chunkEndDate.getFullYear()}-${String(chunkEndDate.getMonth() + 1).padStart(2, "0")}-${String(chunkEndDate.getDate()).padStart(2, "0")}`;
+    chunks.push({ since: chunkStart, until: chunkEnd });
+    cur = new Date(y, m + 1, 1);
+  }
+  return chunks;
+}
+
 /** List of dates from since to until (inclusive), YYYY-MM-DD. */
 export function dateRange(since: string, until: string): string[] {
   const out: string[] = [];

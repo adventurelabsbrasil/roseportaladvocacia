@@ -31,7 +31,7 @@ Obrigatórias para o sync e o dashboard:
 
 - `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto Supabase (ex.: `https://ypyuzjczokfrvtndnoem.supabase.co`)
 - `SUPABASE_SERVICE_ROLE_KEY` — Service Role Key do Supabase (para escrita no sync e leitura no server)
-- `META_ACCESS_TOKEN` — Token de acesso do usuário (Meta)
+- `META_ACCESS_TOKEN` — Token de acesso (Meta). Para automação sem expiração, use um **token de System User**; veja [docs/META_TOKEN_SETUP.md](docs/META_TOKEN_SETUP.md).
 - `META_AD_ACCOUNT_ID` — ID da conta de anúncios (ex.: `499901480052479`)
 - `META_BUSINESS_ID` — ID do negócio (ex.: `1731482393692848`)
 
@@ -86,17 +86,21 @@ No dashboard do projeto Vercel → **Settings** → **General**:
 
 Salve e faça um novo deploy (Deployments → ⋮ no último → Redeploy).
 
-## Fase 2 — Histórico
+## Puxar histórico (01/08/2025 até ontem)
 
-Hoje o sync cobre **um único dia** (ontem ou a data passada em `?date=`).
+O botão "Puxar histórico" no dashboard pode dar timeout em ambiente serverless (a requisição demora muitos minutos). Para popular o banco com todo o histórico, rode **localmente** o script:
 
-**Futuro:** botão no dashboard para **“Puxar histórico até anteontem”**, que:
+```bash
+npm run sync-history
+```
 
-1. Chama a mesma API de sync em loop para cada dia desde uma data inicial até “anteontem”.
-2. Ex.: de `dataInicial` até `ontem - 1` dia, um request por dia:  
-   `POST /api/sync/meta?date=YYYY-MM-DD`
+Requisitos: `.env.local` com `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e credenciais Meta (`META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_BUSINESS_ID`, opcionalmente `META_PAGE_ID`).
 
-Assim o gráfico “Leads por dia por campanha” passa a ter vários pontos no tempo.
+O script deleta os dados de **ontem** em `daily_metrics` (canal Meta) e depois sincroniza **por mês** (um request de insights por mês) até ontem, com log no console (OK/ERRO por mês) e resumo ao final. Data inicial: `npm run sync-history` (2025-08-01) ou `npm run sync-history -- 2025-09-18` para retomar a partir de uma data (evita reprocessar períodos já puxados).
+
+Se aparecer **"Token da Meta expirado"**: o token de *usuário* expira em pouco tempo. Para **automação estável**, use um **token de System User** (não expira): veja o guia **[docs/META_TOKEN_SETUP.md](docs/META_TOKEN_SETUP.md)**.
+
+Depois de rodar, use o dashboard normalmente; o gráfico e a tabela passam a ter dados do período.
 
 ## Estrutura relevante
 

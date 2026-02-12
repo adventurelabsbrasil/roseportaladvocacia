@@ -2,12 +2,15 @@
   "name": "roseportaladvocacia",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-history": "tsx scripts/sync-meta-history.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
@@ -24,6 +27,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "dotenv": "^16",
+    "tsx": "^4"
   }
 }

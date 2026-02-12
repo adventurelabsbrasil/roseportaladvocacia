@@ -80,7 +80,9 @@ export default function MarketingPage() {
       try {
         const params = new URLSearchParams();
         params.set("channel", channelId);
-        if (state.useRange && state.since && state.until) {
+        const useRange =
+          state.useRange || (state.since && state.until && state.since !== state.until);
+        if (useRange && state.since && state.until) {
           params.set("since", state.since);
           params.set("until", state.until);
         } else {
@@ -150,7 +152,7 @@ export default function MarketingPage() {
       if (!res.ok) throw new Error(json.error || "Histórico falhou");
       const msg =
         json.success !== undefined
-          ? `Histórico: ${json.success} dias ok, ${json.errors || 0} com erro.`
+          ? `Histórico: ${json.success} lotes ok, ${json.errors || 0} com erro.`
           : "Histórico concluído.";
       setHistoryMessage(msg);
       await loadData();
@@ -197,6 +199,9 @@ export default function MarketingPage() {
         onApply={loadData}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen((o) => !o)}
+        channels={channels}
+        channelId={channelId}
+        onChannelChange={setChannelId}
       />
       <div className="flex-1 min-w-0 p-6">
         <div className="max-w-6xl mx-auto">
@@ -205,24 +210,6 @@ export default function MarketingPage() {
               Relatório Diário — Marketing
             </h1>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-gray-400">
-                Canal
-                <select
-                  value={channelId}
-                  onChange={(e) => setChannelId(e.target.value)}
-                  className="bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white text-sm min-w-[140px]"
-                >
-                  {channels.length
-                    ? channels.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))
-                    : (
-                        <option value="meta_ads">Meta Ads</option>
-                      )}
-                </select>
-              </label>
               <button
               type="button"
               onClick={handleSync}
@@ -283,7 +270,7 @@ export default function MarketingPage() {
               />
               <KpiCard
                 label="Leads"
-                value={formatNum(t!.leads)}
+                value={formatNum((t!.leads ?? 0) + (t!.conversations_started ?? 0))}
               />
             </section>
 

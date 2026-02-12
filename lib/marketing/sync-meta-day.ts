@@ -4,9 +4,9 @@ import {
   fetchAdInsights,
   parseLeadCount,
   parseResultsCount,
+  parseConversationsStartedFromActions,
   parseNumber,
 } from "@/lib/meta/ads";
-import { fetchConversationsStartedForDay } from "@/lib/meta/conversations";
 
 const CHANNEL_ID = "meta_ads";
 
@@ -30,12 +30,13 @@ export async function syncMetaForDay(
 
   const campaignIdToUuid = new Map<string, string>();
   for (const c of campaigns) {
-    const { data: row } = await supabase
+    const externalId = String(c.id);
+    let { data: row, error: campaignError } = await supabase
       .from("campaigns")
       .upsert(
         {
           channel_id: CHANNEL_ID,
-          external_id: c.id,
+          external_id: externalId,
           name: c.name,
           objective: (c as { objective?: string }).objective ?? null,
         },
@@ -43,19 +44,29 @@ export async function syncMetaForDay(
       )
       .select("id")
       .single();
-    if (row) campaignIdToUuid.set(c.id, row.id);
+    if (campaignError && /objective|column/.test(campaignError.message)) {
+      const res = await supabase
+        .from("campaigns")
+        .upsert(
+          { channel_id: CHANNEL_ID, external_id: externalId, name: c.name },
+          { onConflict: "channel_id,external_id" }
+        )
+        .select("id")
+        .single();
+      row = res.data;
+    }
+    if (row) campaignIdToUuid.set(externalId, row.id);
   }
 
   const adInsights = await fetchAdInsights(date, date);
-  const conversationsStarted = await fetchConversationsStartedForDay(date);
 
   const seenAdIds = new Set<string>();
   const adIdToUuid = new Map<string, string>();
   const adSetKeyToUuid = new Map<string, string>();
 
   for (const row of adInsights) {
-    const campaignExternalId = row.campaign_id;
-    const adExternalId = row.ad_id;
+    const campaignExternalId = row.campaign_id != null ? String(row.campaign_id) : "";
+    const adExternalId = row.ad_id != null ? String(row.ad_id) : "";
     if (!campaignExternalId || !adExternalId) continue;
 
     const campaignUuid = campaignIdToUuid.get(campaignExternalId);
@@ -109,6 +120,7 @@ export async function syncMetaForDay(
     const leads = parseLeadCount(row.actions);
     const results = parseResultsCount(row.actions);
 
+    const conversationsStarted = parseConversationsStartedFromActions(row.actions);
     await supabase.from("daily_metrics").upsert(
       {
         channel_id: CHANNEL_ID,
@@ -120,30 +132,18 @@ export async function syncMetaForDay(
         spend_brl: spend,
         leads,
         results,
-        conversations_started: 0,
+        conversations_started: conversationsStarted,
       },
       { onConflict: "channel_id,campaign_id,ad_id,date" }
     );
   }
 
-  if (conversationsStarted > 0) {
-    const { data: oneRow } = await supabase
-      .from("daily_metrics")
-      .select("id")
-      .eq("channel_id", CHANNEL_ID)
-      .eq("date", date)
-      .limit(1)
-      .single();
-    if (oneRow) {
-      await supabase
-        .from("daily_metrics")
-        .update({ conversations_started: conversationsStarted })
-        .eq("id", oneRow.id);
-    }
-  }
-
   const totalResults = adInsights.reduce(
     (sum, row) => sum + parseResultsCount(row.actions),
+    0
+  );
+  const totalConversations = adInsights.reduce(
+    (sum, row) => sum + parseConversationsStartedFromActions(row.actions),
     0
   );
 
@@ -152,7 +152,7 @@ export async function syncMetaForDay(
     campaigns: campaigns.length,
     ad_rows: adInsights.length,
     results: totalResults,
-    conversations_started: conversationsStarted,
+    conversations_started: totalConversations,
   };
 }
 

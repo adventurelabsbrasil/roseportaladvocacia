@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { syncMetaForDay } from "@/lib/marketing/sync-meta-day";
-import { getYesterday, dateRange } from "@/lib/date";
+import { runHistorySync } from "@/lib/marketing/run-history-sync";
+import { getYesterday } from "@/lib/date";
 
 const DEFAULT_SINCE = "2025-08-01";
-const CHANNEL_ID = "meta_ads";
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,40 +23,19 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerSupabase();
-
-    await supabase
-      .from("daily_metrics")
-      .delete()
-      .eq("channel_id", CHANNEL_ID)
-      .eq("date", yesterday);
-
-    const dates = dateRange(since, yesterday);
-    const results: { date: string; ok: boolean; error?: string }[] = [];
-    const delayMs = 400;
-
-    for (let i = 0; i < dates.length; i++) {
-      const date = dates[i];
-      try {
-        await syncMetaForDay(supabase, date);
-        results.push({ date, ok: true });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        results.push({ date, ok: false, error: message });
-      }
-      if (i < dates.length - 1) await delay(delayMs);
-    }
-
-    const okCount = results.filter((r) => r.ok).length;
-    const errCount = results.filter((r) => !r.ok).length;
+    const output = await runHistorySync(supabase, {
+      since,
+      delayBetweenChunksMs: 800,
+    });
 
     return NextResponse.json({
       ok: true,
-      since,
-      until: yesterday,
-      total_dates: dates.length,
-      success: okCount,
-      errors: errCount,
-      details: results,
+      since: output.since,
+      until: output.until,
+      chunks_total: output.chunks_total,
+      success: output.success,
+      errors: output.errors,
+      details: output.details,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "History sync failed";
