@@ -1,6 +1,6 @@
 # Rose Portal Advocacia — Relatório Diário Marketing
 
-Dashboard de relatório diário de marketing em **Next.js**, com dados no **Supabase** e integração **Meta Ads** + Messenger/WhatsApp. Tema dark, métricas em BRL e gráfico de leads por campanha.
+Dashboard de relatório diário de marketing em **Next.js** (Vercel), com dados no **Supabase** e integração **Meta Ads** + Messenger/WhatsApp. Tema dark, métricas em BRL e gráfico de leads por campanha.
 
 **URL do relatório:** `roseportaladvocacia.adventurelabs.com.br/marketing`
 
