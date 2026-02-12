@@ -43,9 +43,8 @@ Opcional (conversas iniciadas via Page Insights):
 
 Rode a migration no **Supabase SQL Editor** (ou via CLI):
 
-- Arquivo: `supabase/migrations/20250212000000_initial_marketing.sql`
-
-Isso cria as tabelas `channels`, `campaigns`, `ads`, `daily_metrics` e insere o canal **Meta Ads**.
+- `supabase/migrations/20250212000000_initial_marketing.sql` — tabelas `channels`, `campaigns`, `ads`, `daily_metrics` e canal **Meta Ads**.
+- `supabase/migrations/20250212100000_add_results_to_daily_metrics.sql` — coluna **results** (métrica principal: mensagem iniciada / resultados do objetivo).
 
 4. **Dev**
 

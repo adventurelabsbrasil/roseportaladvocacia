@@ -14,9 +14,11 @@ export type MetaInsightRow = {
   ad_id?: string;
   campaign_name?: string;
   ad_name?: string;
+  adset_id?: string;
+  adset_name?: string;
 };
 
-export type MetaCampaign = { id: string; name: string };
+export type MetaCampaign = { id: string; name: string; objective?: string };
 export type MetaAd = { id: string; name: string; campaign_id: string };
 
 function getAccessToken(): string {
@@ -33,14 +35,20 @@ function getAdAccountId(): string {
 
 export async function fetchCampaigns(): Promise<MetaCampaign[]> {
   const accountId = getAdAccountId();
-  const url = `${BASE}/${accountId}/campaigns?fields=id,name&access_token=${getAccessToken()}`;
+  const url = `${BASE}/${accountId}/campaigns?fields=id,name,objective&access_token=${getAccessToken()}`;
   const res = await fetch(url);
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Meta campaigns: ${res.status} ${err}`);
   }
-  const data = (await res.json()) as { data?: { id: string; name: string }[] };
-  return (data.data ?? []).map((c) => ({ id: c.id, name: c.name }));
+  const data = (await res.json()) as {
+    data?: { id: string; name: string; objective?: string }[];
+  };
+  return (data.data ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    objective: c.objective,
+  }));
 }
 
 export async function fetchAdsByCampaign(campaignId: string): Promise<MetaAd[]> {
@@ -87,7 +95,7 @@ export async function fetchAdInsights(
   until: string
 ): Promise<MetaInsightRow[]> {
   const accountId = getAdAccountId();
-  const fields = "impressions,clicks,spend,actions,campaign_id,campaign_name,ad_id,ad_name";
+  const fields = "impressions,clicks,spend,actions,campaign_id,campaign_name,ad_id,ad_name,adset_id,adset_name";
   const params = new URLSearchParams({
     fields: fields,
     time_range: JSON.stringify({ since, until }),
@@ -109,6 +117,30 @@ export function parseLeadCount(actions: MetaInsightRow["actions"]): number {
   if (!actions) return 0;
   const lead = actions.find((a) => a.action_type === "lead");
   return lead ? parseInt(lead.value, 10) || 0 : 0;
+}
+
+/**
+ * Resultados = métrica principal do objetivo da campanha (mensagem iniciada, conversa, lead, etc.)
+ * Soma: mensagem iniciada (qualquer janela), lead, e outros action_types comuns de resultado.
+ */
+export function parseResultsCount(actions: MetaInsightRow["actions"]): number {
+  if (!actions) return 0;
+  let total = 0;
+  for (const a of actions) {
+    const type = (a.action_type || "").toLowerCase();
+    const value = parseInt(a.value, 10) || 0;
+    if (
+      type.includes("messaging_conversation_started") ||
+      type.includes("conversation_started") ||
+      type === "lead" ||
+      type === "onsite_conversion.messaging_conversation_started_7d" ||
+      type === "onsite_conversion.messaging_conversation_started_1d" ||
+      type === "offsite_conversion.messaging_conversation_started_7d"
+    ) {
+      total += value;
+    }
+  }
+  return total;
 }
 
 export function parseNumber(s: string | undefined): number {

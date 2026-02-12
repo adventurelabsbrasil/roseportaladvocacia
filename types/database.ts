@@ -86,6 +86,7 @@ export interface Database {
           link_clicks: number;
           spend_brl: number;
           leads: number;
+          results: number;
           conversations_started: number;
           created_at: string;
         };
@@ -99,6 +100,7 @@ export interface Database {
           link_clicks?: number;
           spend_brl?: number;
           leads?: number;
+          results?: number;
           conversations_started?: number;
           created_at?: string;
         };
@@ -112,6 +114,7 @@ export interface Database {
           link_clicks?: number;
           spend_brl?: number;
           leads?: number;
+          results?: number;
           conversations_started?: number;
           created_at?: string;
         };
