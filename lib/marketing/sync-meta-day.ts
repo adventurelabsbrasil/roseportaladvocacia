@@ -17,6 +17,8 @@ export type SyncDayResult = {
   results: number;
   conversations_started: number;
   error?: string;
+  /** Primeiro erro do Supabase ao gravar em daily_metrics (para diagnóstico). */
+  daily_metrics_error?: string;
 };
 
 export async function syncMetaForDay(
@@ -59,6 +61,8 @@ export async function syncMetaForDay(
   }
 
   const adInsights = await fetchAdInsights(date, date);
+
+  let firstMetricsError: string | undefined;
 
   const seenAdIds = new Set<string>();
   const adIdToUuid = new Map<string, string>();
@@ -121,7 +125,7 @@ export async function syncMetaForDay(
     const results = parseResultsCount(row.actions);
 
     const conversationsStarted = parseConversationsStartedFromActions(row.actions);
-    await supabase.from("daily_metrics").upsert(
+    const { error: metricsError } = await supabase.from("daily_metrics").upsert(
       {
         channel_id: CHANNEL_ID,
         campaign_id: campaignUuid,
@@ -136,6 +140,9 @@ export async function syncMetaForDay(
       },
       { onConflict: "channel_id,campaign_id,ad_id,date" }
     );
+    if (metricsError && !firstMetricsError) {
+      firstMetricsError = `${metricsError.message} (code: ${metricsError.code})`;
+    }
   }
 
   const totalResults = adInsights.reduce(
@@ -153,6 +160,7 @@ export async function syncMetaForDay(
     ad_rows: adInsights.length,
     results: totalResults,
     conversations_started: totalConversations,
+    ...(firstMetricsError ? { daily_metrics_error: firstMetricsError } : {}),
   };
 }
 
