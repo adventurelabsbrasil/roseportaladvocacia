@@ -92,19 +92,36 @@ export async function loadDashboardData(
   const adNames = new Map(adsData.map((a) => [a.id, a.name]));
   const adSetIds = new Map(adsData.map((a) => [a.id, a.ad_set_id]));
 
-  let rows: RowByCampaignAd[] = (metricsRows ?? []).map((r) => ({
-    campaign_id: r.campaign_id,
-    campaign_name: campaignNames.get(r.campaign_id) ?? "",
-    ad_id: r.ad_id,
-    ad_name: adNames.get(r.ad_id) ?? "",
-    ...(isRange ? { date: r.date } : {}),
-    impressions: Number(r.impressions) || 0,
-    link_clicks: Number(r.link_clicks) || 0,
-    spend_brl: Number(r.spend_brl) || 0,
-    leads: Number(r.leads) || 0,
-    results: hasResultsColumn ? Number((r as { results?: number }).results) || 0 : 0,
-    conversations_started: Number(r.conversations_started) || 0,
-  }));
+  let channelName = "";
+  const channelRes = await supabase
+    .from("channels")
+    .select("name")
+    .eq("id", channelId)
+    .maybeSingle();
+  if (channelRes.data?.name) channelName = channelRes.data.name;
+
+  let rows: RowByCampaignAd[] = (metricsRows ?? []).map((r) => {
+    const leads = Number(r.leads) || 0;
+    const conversations_started = Number(r.conversations_started) || 0;
+    const results = hasResultsColumn ? Number((r as { results?: number }).results) || 0 : 0;
+    const leads_gerais = results > 0 ? results : leads + conversations_started;
+    return {
+      campaign_id: r.campaign_id,
+      campaign_name: campaignNames.get(r.campaign_id) ?? "",
+      ad_id: r.ad_id,
+      ad_name: adNames.get(r.ad_id) ?? "",
+      ...(isRange ? { date: r.date } : {}),
+      channel_name: channelName,
+      objective: campaignObjectives.get(r.campaign_id) ?? "",
+      impressions: Number(r.impressions) || 0,
+      link_clicks: Number(r.link_clicks) || 0,
+      spend_brl: Number(r.spend_brl) || 0,
+      leads,
+      leads_gerais,
+      results,
+      conversations_started,
+    };
+  });
 
   if (filters) {
     if (filters.campaign_ids?.length) {
@@ -132,13 +149,14 @@ export async function loadDashboardData(
   const totals = rows.reduce(
     (acc, r) => ({
       leads: acc.leads + r.leads,
+      leads_gerais: acc.leads_gerais + r.leads_gerais,
       results: acc.results + r.results,
       conversations_started: acc.conversations_started + r.conversations_started,
       spend_brl: acc.spend_brl + r.spend_brl,
       link_clicks: acc.link_clicks + r.link_clicks,
       impressions: acc.impressions + r.impressions,
     }),
-    { leads: 0, results: 0, conversations_started: 0, spend_brl: 0, link_clicks: 0, impressions: 0 }
+    { leads: 0, leads_gerais: 0, results: 0, conversations_started: 0, spend_brl: 0, link_clicks: 0, impressions: 0 }
   );
 
   let chartQuery = supabase
@@ -187,11 +205,79 @@ export async function loadDashboardData(
     conversations_started: Number(r.conversations_started) || 0,
   }));
 
+  let previousTotals: typeof totals | undefined;
+  if (isRange && since && until) {
+    const start = new Date(since + "T12:00:00");
+    const end = new Date(until + "T12:00:00");
+    const numDays = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const prevEnd = new Date(start);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - numDays + 1);
+    const prevSince = prevStart.toISOString().slice(0, 10);
+    const prevUntil = prevEnd.toISOString().slice(0, 10);
+
+    let prevQuery = supabase
+      .from("daily_metrics")
+      .select(metricsColumns)
+      .eq("channel_id", channelId)
+      .gte("date", prevSince)
+      .lte("date", prevUntil);
+    const prevRes = await prevQuery;
+    const prevRows = (prevRes.data ?? []) as MetricsRow[];
+    if (prevRows.length > 0) {
+      const adSetIdsPrev = new Map(adsData.map((a) => [a.id, a.ad_set_id]));
+      let prevRowsMapped = prevRows.map((r) => {
+        const leads = Number(r.leads) || 0;
+        const conversations_started = Number(r.conversations_started) || 0;
+        return {
+          ...r,
+          leads,
+          conversations_started,
+          leads_gerais: leads + conversations_started,
+        };
+      });
+      if (filters?.campaign_ids?.length) {
+        const set = new Set(filters.campaign_ids);
+        prevRowsMapped = prevRowsMapped.filter((r) => set.has(r.campaign_id));
+      }
+      if (filters?.ad_set_ids?.length) {
+        const set = new Set(filters.ad_set_ids);
+        prevRowsMapped = prevRowsMapped.filter((r) => {
+          const asid = adSetIdsPrev.get(r.ad_id);
+          return asid != null && set.has(asid);
+        });
+      }
+      if (filters?.ad_ids?.length) {
+        const set = new Set(filters.ad_ids);
+        prevRowsMapped = prevRowsMapped.filter((r) => set.has(r.ad_id));
+      }
+      if (filters?.objective != null && filters.objective !== "") {
+        prevRowsMapped = prevRowsMapped.filter(
+          (r) => campaignObjectives.get(r.campaign_id) === filters.objective
+        );
+      }
+      previousTotals = prevRowsMapped.reduce(
+        (acc, r) => ({
+          leads: acc.leads + r.leads,
+          leads_gerais: acc.leads_gerais + r.leads_gerais,
+          results: acc.results + (r.leads + r.conversations_started),
+          conversations_started: acc.conversations_started + r.conversations_started,
+          spend_brl: acc.spend_brl + Number(r.spend_brl || 0),
+          link_clicks: acc.link_clicks + Number(r.link_clicks || 0),
+          impressions: acc.impressions + Number(r.impressions || 0),
+        }),
+        { leads: 0, leads_gerais: 0, results: 0, conversations_started: 0, spend_brl: 0, link_clicks: 0, impressions: 0 }
+      );
+    }
+  }
+
   return {
     date: isRange ? since : date,
     ...(isRange ? { since, until } : {}),
     channel_id: channelId,
     totals,
+    ...(previousTotals ? { previousTotals } : {}),
     rows,
     chartData,
   };

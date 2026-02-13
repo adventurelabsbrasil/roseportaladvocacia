@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { getPresetRange, getYesterday } from "@/lib/date";
+import { getPresetRange, getYesterday, formatDateToInput, parseDateBR } from "@/lib/date";
 
 function FilterDropdown({
   label,
@@ -160,6 +160,58 @@ export function MarketingSidebar({
     }));
   };
 
+  const [sinceText, setSinceText] = useState(() => formatDateToInput(filterState.since));
+  const [untilText, setUntilText] = useState(() => formatDateToInput(filterState.until));
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSinceText(formatDateToInput(filterState.since));
+    setUntilText(formatDateToInput(filterState.until));
+  }, [filterState.since, filterState.until]);
+
+  const handleSinceBlur = () => {
+    const parsed = parseDateBR(sinceText);
+    if (parsed) {
+      setFilterState((s) => ({ ...s, since: parsed }));
+      setDateError(null);
+    } else if (sinceText.trim()) {
+      setDateError("Data inválida. Use dd/mm/aaaa.");
+      setSinceText(formatDateToInput(filterState.since));
+    } else {
+      setSinceText(formatDateToInput(filterState.since));
+    }
+  };
+
+  const handleUntilBlur = () => {
+    const parsed = parseDateBR(untilText);
+    if (parsed) {
+      setFilterState((s) => ({ ...s, until: parsed }));
+      setDateError(null);
+    } else if (untilText.trim()) {
+      setDateError("Data inválida. Use dd/mm/aaaa.");
+      setUntilText(formatDateToInput(filterState.until));
+    } else {
+      setUntilText(formatDateToInput(filterState.until));
+    }
+  };
+
+  const handleApply = () => {
+    const sinceParsed = parseDateBR(sinceText) || filterState.since;
+    const untilParsed = parseDateBR(untilText) || filterState.until;
+    if (sinceParsed && untilParsed && sinceParsed > untilParsed) {
+      setDateError("A data \"De\" deve ser anterior ou igual a \"Até\".");
+      return;
+    }
+    setDateError(null);
+    setFilterState((s) => ({
+      ...s,
+      since: sinceParsed,
+      until: untilParsed,
+      useRange: sinceParsed !== untilParsed,
+    }));
+    onApply({ since: sinceParsed, until: untilParsed, useRange: sinceParsed !== untilParsed });
+  };
+
   return (
     <>
       <button
@@ -205,24 +257,25 @@ export function MarketingSidebar({
           <div className="space-y-2">
             <label className="block text-xs text-gray-400">De</label>
             <input
-              type="date"
-              value={filterState.since}
-              onChange={(e) =>
-                setFilterState((s) => ({ ...s, since: e.target.value }))
-              }
-              onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+              type="text"
+              placeholder="dd/mm/aaaa"
+              value={sinceText}
+              onChange={(e) => setSinceText(e.target.value)}
+              onBlur={handleSinceBlur}
+              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm placeholder-gray-500"
             />
             <label className="block text-xs text-gray-400">Até</label>
             <input
-              type="date"
-              value={filterState.until}
-              onChange={(e) =>
-                setFilterState((s) => ({ ...s, until: e.target.value }))
-              }
-              onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm"
+              type="text"
+              placeholder="dd/mm/aaaa"
+              value={untilText}
+              onChange={(e) => setUntilText(e.target.value)}
+              onBlur={handleUntilBlur}
+              className="w-full bg-[#0a1628] border border-gray-700 rounded px-3 py-2 text-white text-sm placeholder-gray-500"
             />
+            {dateError && (
+              <p className="text-xs text-red-400">{dateError}</p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -336,7 +389,7 @@ export function MarketingSidebar({
             </button>
             <button
               type="button"
-              onClick={() => onApply()}
+              onClick={handleApply}
               className="flex-1 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium"
             >
               Aplicar filtros

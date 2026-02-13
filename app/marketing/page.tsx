@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import type { DashboardData } from "@/types/marketing";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import type { DashboardData, DashboardTotals } from "@/types/marketing";
 import { formatDateForDisplay, getYesterday } from "@/lib/date";
 import { LeadsChart } from "./LeadsChart";
 import { MetricsTable } from "./MetricsTable";
+import { ScoreCard } from "./ScoreCard";
 import {
   MarketingSidebar,
   type FilterState,
@@ -173,6 +174,51 @@ export default function MarketingPage() {
       maximumFractionDigits: 0,
     }).format(n);
 
+  const prev = data?.previousTotals;
+  const isRange = Boolean(data?.since && data?.until && data.since !== data.until);
+
+  const dailyByDate = useMemo(() => {
+    if (!data?.rows?.length) return new Map<string, Partial<DashboardTotals>>();
+    const map = new Map<string, Partial<DashboardTotals>>();
+    for (const r of data.rows) {
+      const d = r.date ?? data.date;
+      const cur = map.get(d) ?? {
+        spend_brl: 0,
+        impressions: 0,
+        link_clicks: 0,
+        conversations_started: 0,
+        leads: 0,
+        leads_gerais: 0,
+      };
+      cur.spend_brl = (cur.spend_brl ?? 0) + (r.spend_brl ?? 0);
+      cur.impressions = (cur.impressions ?? 0) + (r.impressions ?? 0);
+      cur.link_clicks = (cur.link_clicks ?? 0) + (r.link_clicks ?? 0);
+      cur.conversations_started = (cur.conversations_started ?? 0) + (r.conversations_started ?? 0);
+      cur.leads = (cur.leads ?? 0) + (r.leads ?? 0);
+      cur.leads_gerais = (cur.leads_gerais ?? 0) + (r.leads_gerais ?? 0);
+      map.set(d, cur);
+    }
+    return map;
+  }, [data?.rows, data?.date]);
+
+  const sortedDates = useMemo(() => [...dailyByDate.keys()].sort(), [dailyByDate]);
+
+  const spark = useMemo<(key: keyof DashboardTotals) => number[]>(
+    () => (key) => {
+      if (!sortedDates.length) return [];
+      return sortedDates.map((d) => (dailyByDate.get(d)?.[key] as number) ?? 0);
+    },
+    [sortedDates, dailyByDate]
+  );
+
+  const delta = useCallback(
+    (current: number, previous: number): number | null => {
+      if (previous === 0) return current > 0 ? 100 : null;
+      return ((current - previous) / previous) * 100;
+    },
+    []
+  );
+
   return (
     <div className="min-h-screen bg-[#0a1628] text-gray-100 flex">
       <MarketingSidebar
@@ -209,37 +255,96 @@ export default function MarketingPage() {
           <div className="text-gray-400 py-12">Carregando…</div>
         ) : data ? (
           <>
-            <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-              <KpiCard
+            <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+              <ScoreCard
+                label="Leads Gerais"
+                value={formatNum(t!.leads_gerais ?? 0)}
+                deltaPercent={prev ? delta(t!.leads_gerais ?? 0, prev.leads_gerais ?? 0) : null}
+                sparklineData={isRange ? spark("leads_gerais") : []}
+                metricType="result"
+              />
+              <ScoreCard
                 label="Leads"
                 value={formatNum(t!.leads ?? 0)}
+                deltaPercent={prev ? delta(t!.leads ?? 0, prev.leads ?? 0) : null}
+                sparklineData={isRange ? spark("leads") : []}
+                metricType="result"
               />
-              <KpiCard
+              <ScoreCard
                 label="Conversas iniciadas"
                 value={formatNum(t!.conversations_started)}
+                deltaPercent={prev ? delta(t!.conversations_started, prev.conversations_started ?? 0) : null}
+                sparklineData={isRange ? spark("conversations_started") : []}
+                metricType="result"
               />
-              <KpiCard
+              <ScoreCard
                 label="Valor investido (BRL)"
                 value={formatBRL(t!.spend_brl)}
+                deltaPercent={prev ? delta(t!.spend_brl, prev.spend_brl ?? 0) : null}
+                sparklineData={isRange ? spark("spend_brl") : []}
+                metricType="cost"
               />
-              <KpiCard
+              <ScoreCard
                 label="Cliques no link"
                 value={formatNum(t!.link_clicks)}
+                deltaPercent={prev ? delta(t!.link_clicks, prev.link_clicks ?? 0) : null}
+                sparklineData={isRange ? spark("link_clicks") : []}
+                metricType="result"
               />
-              <KpiCard
+              <ScoreCard
                 label="Impressões"
                 value={formatNum(t!.impressions)}
+                deltaPercent={prev ? delta(t!.impressions, prev.impressions ?? 0) : null}
+                sparklineData={isRange ? spark("impressions") : []}
+                metricType="result"
               />
             </section>
 
             <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-              <MetricCard
+              <ScoreCard
                 label="Custo por mensagem iniciada"
                 value={formatBRL(custoPorMensagem)}
+                deltaPercent={
+                  prev && prev.conversations_started
+                    ? delta(custoPorMensagem, (prev.spend_brl ?? 0) / prev.conversations_started)
+                    : null
+                }
+                sparklineData={[]}
+                metricType="cost"
               />
-              <MetricCard label="CPM" value={formatBRL(cpm)} />
-              <MetricCard label="CPC" value={formatBRL(cpc)} />
-              <MetricCard label="CPR (custo por lead)" value={formatBRL(cpr)} />
+              <ScoreCard
+                label="CPM"
+                value={formatBRL(cpm)}
+                deltaPercent={
+                  prev && prev.impressions
+                    ? delta(cpm, ((prev.spend_brl ?? 0) / prev.impressions) * 1000)
+                    : null
+                }
+                sparklineData={[]}
+                metricType="cost"
+              />
+              <ScoreCard
+                label="CPC"
+                value={formatBRL(cpc)}
+                deltaPercent={
+                  prev && prev.link_clicks
+                    ? delta(cpc, (prev.spend_brl ?? 0) / prev.link_clicks)
+                    : null
+                }
+                sparklineData={[]}
+                metricType="cost"
+              />
+              <ScoreCard
+                label="CPL (custo por lead)"
+                value={formatBRL(cpr)}
+                deltaPercent={
+                  prev && prev.leads_gerais
+                    ? delta(cpr, (prev.spend_brl ?? 0) / prev.leads_gerais)
+                    : null
+                }
+                sparklineData={[]}
+                metricType="cost"
+              />
             </section>
 
             {data.chartData.length > 0 && (
@@ -264,6 +369,7 @@ export default function MarketingPage() {
                 rows={data.rows}
                 formatBRL={formatBRL}
                 formatNum={formatNum}
+                reportDate={data.date}
               />
             </section>
           </>
@@ -278,36 +384,3 @@ export default function MarketingPage() {
   );
 }
 
-function KpiCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-4">
-      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">
-        {label}
-      </p>
-      <p className="text-white text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-4">
-      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">
-        {label}
-      </p>
-      <p className="text-white font-medium">{value}</p>
-    </div>
-  );
-}

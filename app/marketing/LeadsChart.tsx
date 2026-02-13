@@ -8,10 +8,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import type { ChartPoint } from "@/types/marketing";
+import { formatDateBR } from "@/lib/date";
 
 type LeadsChartProps = {
   data: ChartPoint[];
@@ -32,12 +32,21 @@ export function LeadsChart({ data, metric = "conversations" }: LeadsChartProps) 
   }, []);
 
   const dates = [...new Set(data.map((d) => d.date))].sort();
-  const campaigns = Array.from(
+  const allCampaigns = Array.from(
     new Map(data.map((d) => [d.campaign_id, d.campaign_name])).entries()
   );
+  const campaignTotals = new Map<string, number>();
+  for (const d of data) {
+    const v = metric === "conversations" ? d.conversations_started : d.leads;
+    campaignTotals.set(d.campaign_id, (campaignTotals.get(d.campaign_id) ?? 0) + v);
+  }
+  const campaigns = allCampaigns
+    .sort((a, b) => (campaignTotals.get(b[0]) ?? 0) - (campaignTotals.get(a[0]) ?? 0))
+    .slice(0, 5);
+
   const series = dates.map((date) => {
     const point: Record<string, string | number> = {
-      date: date.slice(5),
+      date: formatDateBR(date, true),
       fullDate: date,
     };
     for (const [campaignId, name] of campaigns) {
@@ -74,85 +83,86 @@ export function LeadsChart({ data, metric = "conversations" }: LeadsChartProps) 
   }
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart
-        data={series}
-        margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-        <XAxis
-          dataKey="date"
-          stroke="#888"
-          tick={{ fill: "#9ca3af", fontSize: 12 }}
-        />
-        <YAxis stroke="#888" tick={{ fill: "#9ca3af", fontSize: 12 }} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#1a1a1a",
-            border: "1px solid #374151",
-            borderRadius: "8px",
-          }}
-          labelStyle={{ color: "#e5e7eb" }}
-          formatter={(value: number) => [value, metricLabel]}
-          labelFormatter={(label) => `Data: ${label}`}
-        />
-        <Legend
-          content={(props) => {
-            const { payload } = props;
-            if (!payload?.length) return null;
-            return (
-              <ul className="flex flex-wrap justify-center gap-4 mt-2 list-none">
-                {payload.map((entry) => {
-                  const key = entry.value ?? entry.dataKey;
-                  const hidden = key != null && hiddenDataKeys.has(String(key));
-                  return (
-                    <li
-                      key={key}
-                      onClick={() => key != null && toggleLegend(String(key))}
-                      className={
-                        hidden
-                          ? "text-gray-500 opacity-60 line-through cursor-pointer"
-                          : "text-gray-300 cursor-pointer"
-                      }
-                      onKeyDown={(e) => {
-                        if ((e.key === "Enter" || e.key === " ") && key != null)
-                          toggleLegend(String(key));
-                      }}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <span
-                        className="inline-block w-3 h-3 rounded-full mr-1.5 align-middle"
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      {entry.value}
-                    </li>
-                  );
-                })}
-              </ul>
-            );
-          }}
-        />
-        {campaigns.map(([campaignId, name], i) => {
-          const dataKey = name || campaignId;
-          return (
-            <Line
-              key={campaignId}
-              type="monotone"
-              dataKey={dataKey}
-              stroke={colors[i % colors.length]}
-              strokeWidth={2}
-              dot={{ fill: colors[i % colors.length], r: 4 }}
-              activeDot={{ r: 6 }}
-              connectNulls
-              name={dataKey}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              hide={hiddenDataKeys.has(dataKey)}
+    <div className="flex flex-col gap-2">
+      <div className="w-full" style={{ height: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={series}
+            margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+            <XAxis
+              dataKey="date"
+              stroke="#888"
+              tick={{ fill: "#9ca3af", fontSize: 12 }}
             />
-          );
-        })}
-      </LineChart>
-    </ResponsiveContainer>
+            <YAxis stroke="#888" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#1a1a1a",
+                border: "1px solid #374151",
+                borderRadius: "8px",
+              }}
+              labelStyle={{ color: "#e5e7eb" }}
+              formatter={(value: number) => [value, metricLabel]}
+              labelFormatter={(_, payload) => {
+                const full = payload?.[0]?.payload?.fullDate;
+                return full ? `Data: ${formatDateBR(full, false)}` : "";
+              }}
+            />
+            {campaigns.map(([campaignId, name], i) => {
+              const dataKey = name || campaignId;
+              return (
+                <Line
+                  key={campaignId}
+                  type="monotone"
+                  dataKey={dataKey}
+                  stroke={colors[i % colors.length]}
+                  strokeWidth={2}
+                  dot={{ fill: colors[i % colors.length], r: 4 }}
+                  activeDot={{ r: 6 }}
+                  connectNulls
+                  name={dataKey}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  hide={hiddenDataKeys.has(dataKey)}
+                />
+              );
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="overflow-x-auto overflow-y-hidden">
+        <ul className="flex flex-wrap justify-center gap-4 list-none min-h-[2rem]">
+          {campaigns.map(([campaignId, name], i) => {
+            const dataKey = name || campaignId;
+            const hidden = hiddenDataKeys.has(dataKey);
+            const color = colors[i % colors.length];
+            return (
+              <li
+                key={campaignId}
+                onClick={() => toggleLegend(dataKey)}
+                className={
+                  hidden
+                    ? "text-gray-500 opacity-60 line-through cursor-pointer shrink-0"
+                    : "text-gray-300 cursor-pointer shrink-0"
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") toggleLegend(dataKey);
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <span
+                  className="inline-block w-3 h-3 rounded-full mr-1.5 align-middle"
+                  style={{ backgroundColor: color }}
+                />
+                {dataKey}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
   );
 }
